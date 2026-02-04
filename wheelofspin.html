@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: sans-serif; text-align: center; background: #f5f5f5; }
+    canvas { margin-top: 20px; background: #fff; border-radius: 50%; }
+    #winners { margin-top: 20px; font-weight: bold; font-size: 18px; }
+    button { padding: 10px 20px; font-size: 16px; margin-top: 20px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<h1>Wheel Spinner</h1>
+<canvas id="wheel" width="500" height="500"></canvas>
+<br>
+<button onclick="spinWheel(5)">Spin & Pick 5 Winners</button>
+<div id="winners"></div>
+
+<script>
+const canvas = document.getElementById('wheel');
+const ctx = canvas.getContext('2d');
+const names = [
+  "Alice","Bob","Charlie","David","Eve","Frank","Grace","Hannah","Ian","Jack",
+  "Kate","Leo","Mona","Nina","Oscar","Paul","Quinn","Rita","Steve","Tina"
+];
+
+const colors = ["#8B0000", "#556B2F", "#708090", "#CD853F"]; // muted, readable colors
+let angle = 0; // current wheel rotation
+let winners = [];
+
+function drawWheel(rotation = 0) {
+  const len = names.length;
+  const arc = 2 * Math.PI / len;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(250, 250);
+  ctx.rotate(rotation); // rotate the whole wheel
+
+  for (let i = 0; i < len; i++) {
+    const start = i * arc;
+    const end = start + arc;
+
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, 200, start, end);
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.fill();
+    ctx.strokeStyle = "#333";
+    ctx.stroke();
+
+    // Draw text
+    ctx.save();
+    ctx.rotate(start + arc/2);
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#fff";
+    ctx.font = "16px sans-serif";
+    ctx.fillText(names[i], 190, 5);
+    ctx.restore();
+  }
+
+  // Draw pointer
+  ctx.beginPath();
+  ctx.moveTo(250-5, 50);
+  ctx.lineTo(250+5, 50);
+  ctx.lineTo(250, 30);
+  ctx.fillStyle = "#000";
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// Spin function
+function spinWheel(count) {
+  winners = [];
+  const shuffled = [...names].sort(() => Math.random() - 0.5);
+  winners = shuffled.slice(0, count);
+
+  let spins = Math.random() * 10 + 10; // random spin rotations
+  let totalRotation = spins * 2 * Math.PI;
+  let startTime = null;
+  const duration = 4000; // 4 seconds spin
+
+  function animate(timestamp) {
+    if (!startTime) startTime = timestamp;
+    const elapsed = timestamp - startTime;
+    const rotation = easeOut(elapsed, angle, totalRotation, duration);
+    drawWheel(rotation);
+    if (elapsed < duration) {
+      requestAnimationFrame(animate);
+    } else {
+      angle = (angle + totalRotation) % (2*Math.PI); // save last angle
+      document.getElementById("winners").innerHTML = "🎉 Winners:<br>" + winners.join("<br>");
+    }
+  }
+  requestAnimationFrame(animate);
+}
+
+// easing function for smooth deceleration
+function easeOut(t, b, c, d) {
+  t /= d;
+  t--;
+  return c*(t*t*t + 1) + b;
+}
+
+drawWheel();
+</script>
+
+</body>
+</html>
