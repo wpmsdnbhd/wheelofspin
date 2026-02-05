@@ -4,9 +4,38 @@
   <style>
     body { font-family: sans-serif; text-align: center; background: #f5f5f5; }
     canvas { margin-top: 20px; background: #fff; border-radius: 50%; }
-    #winners { margin-top: 20px; font-weight: bold; font-size: 16px; max-height: 300px; overflow-y: auto; text-align: left; display:inline-block;}
     button, input { padding: 10px; font-size: 16px; margin-top: 20px; }
     input { width: 120px; }
+
+    /* Modal styles */
+    .modal {
+      display: none; 
+      position: fixed; 
+      z-index: 999; 
+      left: 0; top: 0; 
+      width: 100%; height: 100%; 
+      background-color: rgba(0,0,0,0.5); 
+      justify-content: center; 
+      align-items: center;
+    }
+    .modal-content {
+      background: #fff;
+      padding: 20px 30px;
+      border-radius: 12px;
+      text-align: left;
+      max-height: 80%;
+      overflow-y: auto;
+      position: relative;
+      min-width: 300px;
+    }
+    .modal h2 { text-align:center; margin-top:0; }
+    .close {
+      position: absolute; 
+      top: 10px; right: 15px; 
+      font-size: 20px; 
+      cursor: pointer;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -16,17 +45,27 @@
 <br>
 <input type="number" id="winnerCount" placeholder="Number of winners" value="5" min="1">
 <button onclick="spinCustomWinners()">Spin & Pick Winners</button>
-<div id="winners"></div>
+
+<!-- Modal -->
+<div id="winnerModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closeModal()">&times;</span>
+    <h2>🎉 Winners 🎉</h2>
+    <div id="winnerList"></div>
+    <canvas id="confetti" width="400" height="200" style="position:absolute; top:0; left:0;"></canvas>
+  </div>
+</div>
 
 <script>
 const canvas = document.getElementById('wheel');
 const ctx = canvas.getContext('2d');
-let names = []; // full name pool
+let names = [];
 const colors = ["#8B0000", "#556B2F", "#708090", "#CD853F"];
 let angle = 0; 
 let winners = [];
-let wheelNames = []; // names displayed on wheel (20)
+let wheelNames = [];
 
+// Load names
 fetch('names.txt')
   .then(res => res.text())
   .then(data => {
@@ -34,11 +73,10 @@ fetch('names.txt')
     drawWheel();
   });
 
-// Draw the wheel
+// Draw wheel
 function drawWheel(rotation = 0) {
   if (names.length === 0) return;
   
-  // pick 20 names to display on the wheel
   if (wheelNames.length === 0) {
     wheelNames = pickUniqueWinners(Math.min(20, names.length));
   }
@@ -46,92 +84,147 @@ function drawWheel(rotation = 0) {
   const len = wheelNames.length;
   const arc = 2 * Math.PI / len;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.save();
-  ctx.translate(250, 250);
+  ctx.translate(250,250);
   ctx.rotate(rotation);
 
-  for (let i = 0; i < len; i++) {
-    const start = i * arc;
-    const end = start + arc;
+  for(let i=0;i<len;i++){
+    const start = i*arc;
+    const end = start+arc;
 
     ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.arc(0, 0, 200, start, end);
+    ctx.moveTo(0,0);
+    ctx.arc(0,0,200,start,end);
     ctx.fillStyle = colors[i % colors.length];
     ctx.fill();
-    ctx.strokeStyle = "#333";
+    ctx.strokeStyle="#333";
     ctx.stroke();
 
-    // Draw text
     ctx.save();
     ctx.rotate(start + arc/2);
     ctx.textAlign = "right";
-    ctx.fillStyle = "#fff";
-    ctx.font = Math.min(16, 200 / len) + "px sans-serif";
-    ctx.fillText(wheelNames[i], 190, 5);
+    ctx.fillStyle="#fff";
+    ctx.font = Math.min(16,200/len)+"px sans-serif";
+    ctx.fillText(wheelNames[i],190,5);
     ctx.restore();
   }
 
   // Pointer
   ctx.beginPath();
-  ctx.moveTo(250-5, 50);
-  ctx.lineTo(250+5, 50);
-  ctx.lineTo(250, 30);
-  ctx.fillStyle = "#000";
+  ctx.moveTo(245,50);
+  ctx.lineTo(255,50);
+  ctx.lineTo(250,30);
+  ctx.fillStyle="#000";
   ctx.fill();
 
   ctx.restore();
 }
 
-// Spin function
+// Spin
 function spinCustomWinners() {
   let count = parseInt(document.getElementById("winnerCount").value);
-  if (!count || count < 1) count = 5;
-  winners = pickUniqueWinners(count); // pick winners from full list
+  if(!count || count<1) count=5;
+  winners = pickUniqueWinners(count); // unique winners
 
-  // reset wheel names each spin for randomness
-  wheelNames = pickUniqueWinners(Math.min(20, names.length));
+  wheelNames = pickUniqueWinners(Math.min(20,names.length)); // refresh wheel
 
-  let spins = Math.random() * 10 + 10;
-  let totalRotation = spins * 2 * Math.PI;
-  let startTime = null;
-  const duration = 4000;
+  let spins = Math.random()*10 +10;
+  let totalRotation = spins*2*Math.PI;
+  let startTime=null;
+  const duration=4000;
 
-  function animate(timestamp) {
-    if (!startTime) startTime = timestamp;
+  function animate(timestamp){
+    if(!startTime) startTime=timestamp;
     const elapsed = timestamp - startTime;
     const rotation = easeOut(elapsed, angle, totalRotation, duration);
     drawWheel(rotation);
-    if (elapsed < duration) {
+    if(elapsed<duration){
       requestAnimationFrame(animate);
     } else {
       angle = (angle + totalRotation) % (2*Math.PI);
-
-      // display winners numbered
-      document.getElementById("winners").innerHTML = "🎉 Winners:<br>" + winners.map((n,i)=> `${i+1}. ${n}`).join("<br>");
+      showModal();
     }
   }
   requestAnimationFrame(animate);
 }
 
-// Fisher-Yates shuffle to pick unique
-function pickUniqueWinners(count) {
-  const arr = [...names];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr.slice(0, Math.min(count, arr.length));
+// Modal
+function showModal(){
+  const modal = document.getElementById("winnerModal");
+  const list = document.getElementById("winnerList");
+  list.innerHTML = winners.map((n,i)=>`${i+1}. ${n}`).join("<br>");
+  modal.style.display = "flex";
+  startConfetti();
 }
 
-// easing
-function easeOut(t, b, c, d) {
-  t /= d;
+function closeModal(){
+  document.getElementById("winnerModal").style.display="none";
+}
+
+// Fisher-Yates
+function pickUniqueWinners(count){
+  const arr = [...names];
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr.slice(0,Math.min(count,arr.length));
+}
+
+function easeOut(t,b,c,d){
+  t/=d;
   t--;
-  return c*(t*t*t + 1) + b;
+  return c*(t*t*t+1)+b;
+}
+
+/* --- Confetti --- */
+function startConfetti(){
+  const confettiCanvas = document.getElementById("confetti");
+  const confettiCtx = confettiCanvas.getContext("2d");
+  confettiCanvas.width = confettiCanvas.offsetWidth;
+  confettiCanvas.height = confettiCanvas.offsetHeight;
+
+  const confettis=[];
+  const colors=['#FF4136','#FF851B','#2ECC40','#0074D9','#B10DC9'];
+
+  for(let i=0;i<150;i++){
+    confettis.push({
+      x: Math.random()*confettiCanvas.width,
+      y: Math.random()*confettiCanvas.height,
+      r: Math.random()*6+4,
+      d: Math.random()*150+50,
+      color: colors[Math.floor(Math.random()*colors.length)],
+      tilt: Math.random()*10-10
+    });
+  }
+
+  let t=0;
+  function draw(){
+    confettiCtx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+    for(let i=0;i<confettis.length;i++){
+      const f = confettis[i];
+      confettiCtx.fillStyle = f.color;
+      confettiCtx.beginPath();
+      confettiCtx.moveTo(f.x+f.tilt,f.y);
+      confettiCtx.lineTo(f.x+f.tilt+f.r/2,f.y+f.r);
+      confettiCtx.lineTo(f.x+f.tilt-f.r/2,f.y+f.r);
+      confettiCtx.closePath();
+      confettiCtx.fill();
+
+      f.y += Math.sin(t + f.d)*2 + 1;
+      f.x += Math.sin(t)*1.5;
+
+      if(f.y > confettiCanvas.height) f.y = -10;
+    }
+    t +=0.05;
+    requestAnimationFrame(draw);
+  }
+  draw();
+
+  // stop confetti after 5 seconds
+  setTimeout(()=> confettiCtx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height),5000);
 }
 </script>
-
 </body>
 </html>
