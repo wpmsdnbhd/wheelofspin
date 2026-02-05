@@ -4,7 +4,7 @@
   <style>
     body { font-family: sans-serif; text-align: center; background: #f5f5f5; }
     canvas { margin-top: 20px; background: #fff; border-radius: 50%; }
-    #winners { margin-top: 20px; font-weight: bold; font-size: 18px; }
+    #winners { margin-top: 20px; font-weight: bold; font-size: 16px; max-height: 300px; overflow-y: auto; }
     button { padding: 10px 20px; font-size: 16px; margin-top: 20px; cursor: pointer; }
   </style>
 </head>
@@ -13,28 +13,29 @@
 <h1>Wheel Spinner</h1>
 <canvas id="wheel" width="500" height="500"></canvas>
 <br>
-<button onclick="spinWheel(5)">Spin & Pick 5 Winners</button>
+<input type="number" id="winnerCount" placeholder="Number of winners" value="5" min="1" style="width:120px; padding:5px;">
+<button onclick="spinCustomWinners()">Spin & Pick Winners</button>
 <div id="winners"></div>
 
 <script>
 const canvas = document.getElementById('wheel');
 const ctx = canvas.getContext('2d');
-let names = []; // we'll load names dynamically
-const colors = ["#8B0000", "#556B2F", "#708090", "#CD853F"]; // muted colors
+let names = [];
+const colors = ["#8B0000", "#556B2F", "#708090", "#CD853F"]; 
 let angle = 0; 
 let winners = [];
 
-// Load names from a text file (one name per line)
+// Load names from names.txt
 fetch('names.txt')
   .then(res => res.text())
   .then(data => {
-    names = data.split('\n').filter(n => n.trim() !== ''); // remove empty lines
-    drawWheel(); // draw the wheel once names are loaded
+    names = data.split('\n').filter(n => n.trim() !== '');
+    drawWheel();
   });
 
 // Draw the wheel
 function drawWheel(rotation = 0) {
-  if (names.length === 0) return; // wait until names are loaded
+  if (names.length === 0) return;
   const len = names.length;
   const arc = 2 * Math.PI / len;
 
@@ -60,12 +61,12 @@ function drawWheel(rotation = 0) {
     ctx.rotate(start + arc/2);
     ctx.textAlign = "right";
     ctx.fillStyle = "#fff";
-    ctx.font = Math.min(16, 200 / len) + "px sans-serif"; // scale text if many names
+    ctx.font = Math.min(16, 200 / len) + "px sans-serif";
     ctx.fillText(names[i], 190, 5);
     ctx.restore();
   }
 
-  // Draw pointer
+  // Pointer
   ctx.beginPath();
   ctx.moveTo(250-5, 50);
   ctx.lineTo(250+5, 50);
@@ -76,9 +77,12 @@ function drawWheel(rotation = 0) {
   ctx.restore();
 }
 
-// Spin the wheel
-function spinWheel(count) {
-  if (names.length === 0) return alert("Names not loaded yet!");
+// Spin function with custom winner count
+function spinCustomWinners() {
+  let count = parseInt(document.getElementById("winnerCount").value);
+  if (!count || count < 1) count = 5;
+  if (count > names.length) count = names.length;
+
   winners = [];
   const shuffled = [...names].sort(() => Math.random() - 0.5);
   winners = shuffled.slice(0, count);
@@ -103,13 +107,13 @@ function spinWheel(count) {
   requestAnimationFrame(animate);
 }
 
-// easing function for smooth deceleration
+// easing for smooth deceleration
 function easeOut(t, b, c, d) {
   t /= d;
   t--;
   return c*(t*t*t + 1) + b;
 }
-
 </script>
+
 </body>
 </html>
