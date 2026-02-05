@@ -77,15 +77,12 @@ function drawWheel(rotation = 0) {
   ctx.restore();
 }
 
-// Spin function with custom winner count
 function spinCustomWinners() {
   let count = parseInt(document.getElementById("winnerCount").value);
   if (!count || count < 1) count = 5;
-  if (count > names.length) count = names.length;
 
-  winners = [];
-  const shuffled = [...names].sort(() => Math.random() - 0.5);
-  winners = shuffled.slice(0, count);
+  // pick unique winners
+  winners = pickUniqueWinners(count);
 
   let spins = Math.random() * 10 + 10;
   let totalRotation = spins * 2 * Math.PI;
@@ -107,6 +104,17 @@ function spinCustomWinners() {
   requestAnimationFrame(animate);
 }
 
+// Fisher–Yates shuffle to pick unique winners
+function pickUniqueWinners(count) {
+  const arr = [...names];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.slice(0, Math.min(count, arr.length));
+}
+
+
 // easing for smooth deceleration
 function easeOut(t, b, c, d) {
   t /= d;
@@ -117,3 +125,4 @@ function easeOut(t, b, c, d) {
 
 </body>
 </html>
+
