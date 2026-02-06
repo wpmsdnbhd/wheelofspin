@@ -1,31 +1,83 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Wheel Spinner</title>
+<title>🎡 Wheel Spinner</title>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
+/* ===== PAGE ===== */
 body {
-  font-family: sans-serif;
+  margin: 0;
+  font-family: "Segoe UI", sans-serif;
+  background: linear-gradient(135deg, #f5f0e1, #e8dcd5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  color: #333;
+}
+
+.container {
   text-align: center;
-  background: #f5f5f5;
 }
 
-canvas#wheel {
-  margin-top: 20px;
-  background: #fff;
-  border-radius: 50%;
+/* ===== FANCY INPUT BOX ===== */
+.fancy-box {
+  background: linear-gradient(145deg, #ffffff, #e0dcd4);
+  padding: 20px 30px;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+  margin-bottom: 25px;
 }
 
-button, input {
-  padding: 10px;
+.fancy-box input {
+  display: block;
+  margin: 12px auto;
+  padding: 10px 15px;
+  border-radius: 12px;
+  border: 1px solid #bbb;
   font-size: 16px;
-  margin-top: 15px;
+  width: 220px;
 }
 
-input { width: 150px; }
+/* ===== WHEEL ===== */
+#wheel-wrapper {
+  position: relative;
+  display: inline-block;
+}
 
-/* MODAL */
+canvas {
+  background: transparent;
+}
+
+/* CENTER BUTTON */
+#spinBtn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90px;
+  height: 90px;
+  background: radial-gradient(circle, #6A7B5A, #556B2F);
+  border-radius: 50%;
+  color: #fff;
+  font-weight: bold;
+  font-size: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+  transition: 0.2s;
+}
+
+#spinBtn:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+/* ===== MODAL ===== */
 .modal {
   display: none;
   position: fixed;
@@ -39,7 +91,7 @@ input { width: 150px; }
 .modal-content {
   background: white;
   padding: 25px;
-  border-radius: 12px;
+  border-radius: 14px;
   min-width: 320px;
   max-height: 80vh;
   overflow-y: auto;
@@ -54,32 +106,31 @@ input { width: 150px; }
   font-size: 22px;
 }
 
-#winnerList {
-  position: relative;
-  z-index: 2;
-  font-size: 16px;
-  line-height: 1.6;
-}
-
+/* CONFETTI */
 #confetti {
   position: fixed;
   inset: 0;
-  z-index: 998; /* below modal (999), above page */
+  z-index: 998;
   pointer-events: none;
 }
-
 </style>
 </head>
 
 <body>
 
-<h1>🎡 Wheel Spinner</h1>
+<div class="container">
+  <h1>🎡 Spin the Wheel</h1>
 
-<canvas id="wheel" width="500" height="500"></canvas><br>
+  <div class="fancy-box">
+    <input type="file" id="excelFile" accept=".xlsx,.xls">
+    <input type="number" id="winnerCount" value="5" min="1">
+  </div>
 
-<input type="number" id="winnerCount" value="5" min="1">
-<br>
-<button onclick="spin()">Spin & Pick Winners</button>
+  <div id="wheel-wrapper">
+    <canvas id="wheel" width="600" height="600"></canvas>
+    <div id="spinBtn">SPIN</div>
+  </div>
+</div>
 
 <!-- MODAL -->
 <div id="winnerModal" class="modal">
@@ -90,110 +141,106 @@ input { width: 150px; }
   </div>
 </div>
 
+<canvas id="confetti"></canvas>
+
 <script>
-/* ================= GLOBAL ================= */
+/* ===== GLOBAL ===== */
 const canvas = document.getElementById("wheel");
 const ctx = canvas.getContext("2d");
 
-const colors = [
-  "#7A3B3B", // muted brick red
-  "#6A7B5A", // soft olive green
-  "#7C8794", // dusty slate grey
-  "#B8906B"  // soft tan brown
-];
+const colors = ["#7A3B3B","#6A7B5A","#7C8794","#B8906B"];
 
-let names = [];
+let allNames = [];
+let remainingNames = [];
 let wheelNames = [];
 let winners = [];
 let angle = 0;
 
-/* ================= LOAD NAMES.TXT ================= */
-fetch("names.txt")
-  .then(res => res.text())
-  .then(text => {
-    names = text
-      .split("\n")
-      .map(n => n.trim())
-      .filter(n => n !== "");
+/* ===== LOAD EXCEL ===== */
+document.getElementById("excelFile").addEventListener("change", e => {
+  const file = e.target.files[0];
+  const reader = new FileReader();
 
-    wheelNames = pickUnique(Math.min(20, names.length));
+  reader.onload = evt => {
+    const wb = XLSX.read(evt.target.result, {type:"binary"});
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet,{header:1});
+
+    allNames = data.flat().filter(n => n);
+    remainingNames = [...allNames];
+    wheelNames = pickVisualNames();
     drawWheel();
-  });
+  };
+  reader.readAsBinaryString(file);
+});
 
-/* ================= WHEEL ================= */
-function drawWheel(rotation = 0) {
-  ctx.clearRect(0,0,500,500);
+/* ===== DRAW WHEEL ===== */
+function drawWheel(rotation=0){
+  ctx.clearRect(0,0,600,600);
   ctx.save();
-  ctx.translate(250,250);
+  ctx.translate(300,300);
   ctx.rotate(rotation);
 
-  const arc = (2*Math.PI) / wheelNames.length;
-
-  for (let i=0;i<wheelNames.length;i++){
+  const arc = 2*Math.PI / wheelNames.length;
+  for(let i=0;i<wheelNames.length;i++){
     ctx.beginPath();
     ctx.moveTo(0,0);
-    ctx.arc(0,0,200,i*arc,(i+1)*arc);
+    ctx.arc(0,0,290,i*arc,(i+1)*arc);
     ctx.fillStyle = colors[i % colors.length];
     ctx.fill();
-    ctx.strokeStyle="#333";
-    ctx.stroke();
 
     ctx.save();
     ctx.rotate(i*arc + arc/2);
     ctx.textAlign="right";
     ctx.fillStyle="#fff";
     ctx.font="14px sans-serif";
-    ctx.fillText(wheelNames[i],185,5);
+    ctx.fillText(wheelNames[i],270,5);
     ctx.restore();
   }
-
   ctx.restore();
-  ctx.beginPath();
-  ctx.moveTo(245,50);
-  ctx.lineTo(255,50);
-  ctx.lineTo(250,30);
-  ctx.fill();
 }
 
-/* ================= SPIN ================= */
+/* ===== SPIN ===== */
+document.getElementById("spinBtn").onclick = spin;
+
 function spin(){
-  if (names.length === 0) return;
+  if(remainingNames.length === 0) return;
 
-  let count = parseInt(document.getElementById("winnerCount").value);
-  if(!count || count < 1) count = 1;
+  const count = Math.min(
+    parseInt(document.getElementById("winnerCount").value),
+    remainingNames.length
+  );
 
-  winners = pickUnique(count);
-  wheelNames = pickUnique(Math.min(20, names.length));
+  winners = pickWinners(count);
+  wheelNames = pickVisualNames();
 
-  let spins = Math.random()*8 + 8;
-  let totalRotation = spins * 2 * Math.PI;
-  let start = null;
-  const duration = 4000;
+  let totalRotation = (Math.random()*8+8)*2*Math.PI;
+  let start=null, duration=4000;
 
   function animate(t){
-    if(!start) start = t;
-    let progress = t - start;
-    let rot = easeOut(progress, angle, totalRotation, duration);
-    drawWheel(rot);
-
-    if(progress < duration){
-      requestAnimationFrame(animate);
-    } else {
-      angle = (angle + totalRotation) % (2*Math.PI);
+    if(!start) start=t;
+    let p=t-start;
+    let r=easeOut(p,angle,totalRotation,duration);
+    drawWheel(r);
+    if(p<duration) requestAnimationFrame(animate);
+    else {
+      angle=(angle+totalRotation)%(2*Math.PI);
       showWinners();
     }
   }
   requestAnimationFrame(animate);
 }
 
-/* ================= HELPERS ================= */
-function pickUnique(count){
-  let arr = [...names];
-  for(let i=arr.length-1;i>0;i--){
-    let j = Math.floor(Math.random()*(i+1));
-    [arr[i],arr[j]] = [arr[j],arr[i]];
-  }
-  return arr.slice(0, Math.min(count, arr.length));
+/* ===== HELPERS ===== */
+function pickWinners(n){
+  let shuffled=[...remainingNames].sort(()=>Math.random()-0.5);
+  let picked=shuffled.slice(0,n);
+  remainingNames=remainingNames.filter(x=>!picked.includes(x));
+  return picked;
+}
+
+function pickVisualNames(){
+  return [...remainingNames].sort(()=>Math.random()-0.5).slice(0,20);
 }
 
 function easeOut(t,b,c,d){
@@ -201,11 +248,10 @@ function easeOut(t,b,c,d){
   return c*(t*t*t+1)+b;
 }
 
-/* ================= MODAL ================= */
+/* ===== MODAL + CONFETTI ===== */
 function showWinners(){
   document.getElementById("winnerList").innerHTML =
     winners.map((w,i)=>`${i+1}. ${w}`).join("<br>");
-
   document.getElementById("winnerModal").style.display="flex";
   startConfetti();
 }
@@ -214,50 +260,35 @@ function closeModal(){
   document.getElementById("winnerModal").style.display="none";
 }
 
-/* ================= CONFETTI ================= */
 function startConfetti(){
-  const c = document.getElementById("confetti");
-  const ctx = c.getContext("2d");
+  const c=document.getElementById("confetti");
+  const cx=c.getContext("2d");
+  c.width=innerWidth; c.height=innerHeight;
 
-  c.width = window.innerWidth;
-  c.height = window.innerHeight;
+  let conf=Array.from({length:200},()=>({
+    x:Math.random()*c.width,
+    y:Math.random()*c.height,
+    s:Math.random()*6+4,
+    d:Math.random()*100,
+    col:colors[Math.floor(Math.random()*colors.length)]
+  }));
 
-  let conf = [];
-  let cols = ["#ffbe0b","#fb5607","#ff006e","#8338ec","#3a86ff"];
-
-  for(let i=0;i<200;i++){
-    conf.push({
-      x: Math.random()*c.width,
-      y: Math.random()*c.height,
-      r: Math.random()*6+4,
-      d: Math.random()*100,
-      color: cols[Math.floor(Math.random()*cols.length)]
-    });
-  }
-
-  let t = 0;
+  let t=0;
   function draw(){
-    ctx.clearRect(0,0,c.width,c.height);
+    cx.clearRect(0,0,c.width,c.height);
     conf.forEach(p=>{
-      ctx.fillStyle = p.color;
-      ctx.fillRect(p.x,p.y,p.r,p.r);
-      p.y += Math.cos(t+p.d)+2;
-      if(p.y > c.height) p.y = -10;
+      cx.fillStyle=p.col;
+      cx.fillRect(p.x,p.y,p.s,p.s);
+      p.y+=Math.cos(t+p.d)+2;
+      if(p.y>c.height)p.y=-10;
     });
-    t += 0.05;
+    t+=0.05;
     requestAnimationFrame(draw);
   }
   draw();
-
-  setTimeout(() => ctx.clearRect(0,0,c.width,c.height), 5000);
+  setTimeout(()=>cx.clearRect(0,0,c.width,c.height),5000);
 }
-
 </script>
-
-  <canvas id="confetti"></canvas>
 
 </body>
 </html>
-
-
-
