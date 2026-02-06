@@ -62,11 +62,12 @@ input { width: 150px; }
 }
 
 #confetti {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 1;
+  z-index: 998; /* below modal (999), above page */
   pointer-events: none;
 }
+
 </style>
 </head>
 
@@ -86,7 +87,6 @@ input { width: 150px; }
     <span class="close" onclick="closeModal()">×</span>
     <h2>🎉 Winners 🎉</h2>
     <div id="winnerList"></div>
-    <canvas id="confetti"></canvas>
   </div>
 </div>
 
@@ -213,15 +213,14 @@ function closeModal(){
 function startConfetti(){
   const c = document.getElementById("confetti");
   const ctx = c.getContext("2d");
-  const box = c.parentElement;
 
-  c.width = box.offsetWidth;
-  c.height = box.offsetHeight;
+  c.width = window.innerWidth;
+  c.height = window.innerHeight;
 
   let conf = [];
   let cols = ["#ffbe0b","#fb5607","#ff006e","#8338ec","#3a86ff"];
 
-  for(let i=0;i<150;i++){
+  for(let i=0;i<200;i++){
     conf.push({
       x: Math.random()*c.width,
       y: Math.random()*c.height,
@@ -231,23 +230,27 @@ function startConfetti(){
     });
   }
 
-  let t=0;
+  let t = 0;
   function draw(){
     ctx.clearRect(0,0,c.width,c.height);
     conf.forEach(p=>{
-      ctx.fillStyle=p.color;
+      ctx.fillStyle = p.color;
       ctx.fillRect(p.x,p.y,p.r,p.r);
-      p.y += Math.cos(t+p.d)+1;
-      if(p.y>c.height) p.y=-10;
+      p.y += Math.cos(t+p.d)+2;
+      if(p.y > c.height) p.y = -10;
     });
-    t+=0.05;
+    t += 0.05;
     requestAnimationFrame(draw);
   }
   draw();
 
-  setTimeout(()=>ctx.clearRect(0,0,c.width,c.height),5000);
+  setTimeout(() => ctx.clearRect(0,0,c.width,c.height), 5000);
 }
+
 </script>
+
+  <canvas id="confetti"></canvas>
 
 </body>
 </html>
+
