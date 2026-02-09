@@ -4,12 +4,10 @@
 <meta charset="UTF-8">
 <title>Wheel Spinner</title>
 
-
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
 <style>
-/* ===== PAGE ===== */
 body {
   margin: 0;
   font-family: "Segoe UI", sans-serif;
@@ -18,17 +16,27 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  color: #333;
 }
 
-/* ===== LAYOUT ===== */
+/* HEADER */
+.page-header {
+  position: fixed;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 40px;
+  color: #6E7F4B;
+  z-index: 1000;
+}
+
+/* LAYOUT */
 .container {
   display: flex;
   gap: 40px;
   align-items: center;
 }
 
-/* ===== WHEEL ===== */
+/* WHEEL */
 #wheelWrapper {
   position: relative;
 }
@@ -37,7 +45,6 @@ canvas {
   background: transparent;
 }
 
-/* Center spin button */
 #spinBtn {
   position: absolute;
   top: 50%;
@@ -55,33 +62,30 @@ canvas {
   box-shadow: 0 6px 15px rgba(0,0,0,.25);
 }
 
-/* ===== SIDE PANEL ===== */
+/* SETTINGS PANEL */
+.panel {
+  background: white;
+  padding: 14px;
+  border-radius: 14px;
+  width: 200px;
+  box-shadow: 0 8px 20px rgba(0,0,0,.12);
+}
+
 .panel h3 {
   margin: 0 0 10px;
-  font-size: 15px;
   text-align: center;
 }
 
-.panel {
-  background: #fff;          /* keeps the box visible */
-  padding: 12px 14px;        /* inside spacing */
-  border-radius: 14px;       /* rounded corners */
-  width: 200px;              /* slimmer box */
-  box-shadow: 0 8px 20px rgba(0,0,0,.12);  /* nice shadow */
-}
-
 .panel input {
-  width: 90%;                /* smaller than box */
+  width: 90%;
   display: block;
-  margin: 6px auto;          /* center horizontally */
+  margin: 8px auto;
   padding: 7px 10px;
   border-radius: 10px;
   border: 1px solid #ccc;
-  font-size: 14px;
 }
 
-
-/* ===== POPUP ===== */
+/* POPUP */
 #popup {
   display: none;
   position: fixed;
@@ -101,11 +105,6 @@ canvas {
   overflow-y: auto;
 }
 
-.popupBox h2 {
-  text-align: center;
-  margin-top: 0;
-}
-
 .popupBox button {
   width: 100%;
   margin-top: 12px;
@@ -117,19 +116,58 @@ canvas {
   cursor: pointer;
 }
 
-.page-header {
-  position: fixed;         /* keeps it at top even if page scrolls */
-  top: 80px;               /* distance from top */
-  left: 50%;               /* center horizontally */
-  transform: translateX(-50%); /* correct horizontal centering */
-  font-family: "Poppins", sans-serif;
-  font-size: 40px;
-  color: #6E7F4B;
-  z-index: 1000;           /* above everything else */
-  margin: 0;
+/* HISTORY BUTTON */
+#historyBtn {
+  position: fixed;
+  top: 30px;
+  right: 30px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: #6E7F4B;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
 }
 
+/* HISTORY PANEL */
+#historyPanel {
+  display: none;
+  position: fixed;
+  top: 90px;
+  right: 30px;
+  width: 240px;
+  max-height: 300px;
+  background: white;
+  padding: 12px;
+  border-radius: 14px;
+  box-shadow: 0 10px 25px rgba(0,0,0,.25);
+  overflow-y: auto;
+}
 
+#historyPanel h3 {
+  margin: 0 0 8px;
+  text-align: center;
+}
+
+#historyList {
+  padding-left: 18px;
+  margin: 0;
+  font-size: 14px;
+  word-break: break-word;
+}
+
+#exportBtn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 6px;
+  border-radius: 8px;
+  border: none;
+  background: #6E7F4B;
+  color: white;
+  cursor: pointer;
+}
 </style>
 </head>
 
@@ -147,92 +185,97 @@ canvas {
   <div class="panel">
     <h3>Settings</h3>
     <input type="file" id="fileInput" accept=".xlsx,.xls">
-    <input type="number" id="winnerCount" placeholder="Total winners" value="" />
+    <input type="number" id="winnerCount" placeholder="Total winners">
   </div>
 
 </div>
 
+<!-- POPUP -->
 <div id="popup">
   <div class="popupBox">
     <h2>🎉 Winners 🎉</h2>
     <ol id="winnerList"></ol>
-    <button onclick="closePopup()">Close</button>
+    <button onclick="popup.style.display='none'">Close</button>
   </div>
 </div>
 
+<!-- HISTORY -->
+<button id="historyBtn">🏆</button>
+<div id="historyPanel">
+  <h3>🏆 Winners History</h3>
+  <ol id="historyList"></ol>
+  <button id="exportBtn">Export to Excel</button>
+</div>
+
 <script>
-
-
-/* ===== CANVAS ===== */
 const canvas = document.getElementById("wheel");
 const ctx = canvas.getContext("2d");
 
-/* Softer original colors */
-const colors = [
-  "#8F3E3E",
-  "#6E7F4B",
-  "#7C8A96",
-  "#C89B6A"
-];
+const colors = ["#8F3E3E","#6E7F4B","#7C8A96","#C89B6A"];
 
-let allNames = [];
-let remainingNames = [];
-let displayNames = [];
-let angle = 0;
+let allNames = [], remainingNames = [], displayNames = [], angle = 0;
+let winnersHistory = [];
 
-/* ===== LOAD EXCEL ===== */
+/* LOAD EXCEL */
 fileInput.onchange = e => {
   const reader = new FileReader();
   reader.onload = evt => {
     const wb = XLSX.read(evt.target.result, { type: "binary" });
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    allNames = XLSX.utils.sheet_to_json(sheet, { header: 1 })
-      .flat()
-      .filter(Boolean);
-
+    allNames = XLSX.utils.sheet_to_json(sheet, { header: 1 }).flat().filter(Boolean);
     remainingNames = [...allNames];
-    updateWheelNames();
-    drawWheel();
+    updateWheel();
   };
   reader.readAsBinaryString(e.target.files[0]);
 };
 
-/* ===== DRAW WHEEL ===== */
-function drawWheel(rotation = angle) {
+/* SHUFFLE */
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){
+    let j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+/* UPDATE DISPLAY NAMES */
+function updateWheel(){
+  displayNames = shuffle([...remainingNames]).slice(0,36);
+  drawWheel(angle);
+}
+
+/* DRAW WHEEL */
+function drawWheel(rot=angle){
   ctx.clearRect(0,0,600,600);
   ctx.save();
   ctx.translate(300,300);
-  ctx.rotate(rotation);
-
-  const arc = (2 * Math.PI) / displayNames.length;
-
-  displayNames.forEach((name,i)=>{
+  ctx.rotate(rot);
+  const arc = 2*Math.PI/displayNames.length;
+  displayNames.forEach((n,i)=>{
     ctx.beginPath();
     ctx.moveTo(0,0);
-    ctx.fillStyle = colors[i % colors.length];
+    ctx.fillStyle = colors[i%colors.length];
     ctx.arc(0,0,290,i*arc,(i+1)*arc);
     ctx.fill();
 
     ctx.save();
-    ctx.rotate(i*arc + arc/2);
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#fff";
-    ctx.font = "18px Poppins";   // BIGGER FONT
-    ctx.fillText(name, 260, 6);  // PUSH TO EDGE
+    ctx.rotate(i*arc+arc/2);
+    ctx.textAlign="right";
+    ctx.fillStyle="#fff";
+    ctx.font="18px Poppins";
+    ctx.fillText(n,260,6);
     ctx.restore();
   });
-
   ctx.restore();
 }
 
-/* ===== SPIN ===== */
+/* SPIN WITH SUSPENSE */
 spinBtn.onclick = () => {
-  if (!remainingNames.length) return;
-
+  if(!remainingNames.length) return;
   const count = Math.min(+winnerCount.value, remainingNames.length);
-  let winners = [];
+  const winners = [];
 
-  let spins = Math.random()*8 + 8;
+  let spins = Math.random()*8 + 8; // 8-16 spins
   let totalRotation = spins * 2 * Math.PI;
   let start = null;
   const duration = 3500;
@@ -240,47 +283,43 @@ spinBtn.onclick = () => {
   function animate(t){
     if(!start) start = t;
     let progress = Math.min((t-start)/duration,1);
-    angle = totalRotation * (1 - Math.pow(1-progress,3));
+    angle = totalRotation*(1 - Math.pow(1-progress,3));
     drawWheel(angle);
 
-    if(progress < 1) {
+    if(progress<1){
       requestAnimationFrame(animate);
     } else {
       for(let i=0;i<count;i++){
-        winners.push(
-          remainingNames.splice(Math.random()*remainingNames.length|0,1)[0]
-        );
+        winners.push(remainingNames.splice(Math.floor(Math.random()*remainingNames.length),1)[0]);
       }
-      updateWheelNames();
-      showPopup(winners);
+      winnerList.innerHTML = winners.map(w=>`<li>${w}</li>`).join("");
+      popup.style.display = "flex";
+      confetti({particleCount:200,spread:80});
+      winnersHistory.push(...winners);
+      updateHistory();
+      updateWheel();
     }
   }
   requestAnimationFrame(animate);
 };
 
-/* ===== HELPERS ===== */
-function updateWheelNames(){
-  displayNames = shuffle([...remainingNames]).slice(0,36);
+/* HISTORY */
+function updateHistory(){
+  historyList.innerHTML = winnersHistory.map(w=>`<li>${w}</li>`).join("");
 }
 
-function shuffle(arr){
-  for(let i=arr.length-1;i>0;i--){
-    let j=Math.random()*(i+1)|0;
-    [arr[i],arr[j]]=[arr[j],arr[i]];
-  }
-  return arr;
-}
+historyBtn.onclick = ()=>{
+  historyPanel.style.display = historyPanel.style.display==="block"?"none":"block";
+};
 
-/* ===== POPUP ===== */
-function showPopup(winners){
-  winnerList.innerHTML = winners.map(w=>`<li>${w}</li>`).join("");
-  popup.style.display = "flex";
-  confetti({ particleCount: 200, spread: 80 });
-}
-
-function closePopup(){
-  popup.style.display = "none";
-}
+/* EXPORT TO EXCEL */
+exportBtn.onclick = ()=>{
+  if(!winnersHistory.length) return alert("No winners to export!");
+  const ws = XLSX.utils.aoa_to_sheet([["Winner Name"], ...winnersHistory.map(w=>[w])]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Winners");
+  XLSX.writeFile(wb, "winners_history.xlsx");
+};
 </script>
 
 </body>
